@@ -1,0 +1,465 @@
+=======================================================================
+                    阶段6：ChatMemory 进阶 - 代码逐行解释
+=======================================================================
+
+阶段6的核心目标：将对话记忆从JVM内存（MessageWindowChatMemory）迁移到Redis持久化，
+并实现"Last N + Summary"模式（窗口10条完整消息 + 溢出摘要）。
+
+涉及文件：
+  1. RedisChatMemory.java    ← 新增核心文件
+  2. AiConfig.java           ← 修改 chatMemory Bean
+  3. RagAgentService.java    ← 摘要注入 System Prompt
+  4. ChatServiceImpl.java    ← 摘要注入 User Message
+
+=======================================================================
+一、RedisChatMemory.java - 核心新文件
+=======================================================================
+
+第1-18行：包声明和导入
+-----------------------------------------------------------------------
+package com.ruoyi.ai.config;
+
+import java.util.ArrayList;          // 动态数组
+import java.util.List;               // 列表接口
+import java.util.concurrent.TimeUnit; // 时间单位（秒、分钟等）
+import org.slf4j.Logger;             // 日志
+import org.slf4j.LoggerFactory;      // 日志工厂
+import org.springframework.ai.chat.memory.ChatMemory;       // Spring AI记忆接口
+import org.springframework.ai.chat.messages.AssistantMessage; // AI消息
+import org.springframework.ai.chat.messages.Message;         // 消息接口
+import org.springframework.ai.chat.messages.SystemMessage;   // 系统消息
+import org.springframework.ai.chat.messages.UserMessage;     // 用户消息
+import org.springframework.data.redis.core.RedisTemplate;    // Redis操作模板
+import com.fasterxml.jackson.core.JsonProcessingException;   // JSON处理异常
+import com.fasterxml.jackson.databind.ObjectMapper;          // JSON序列化工具
+
+第19-25行：类注释
+-----------------------------------------------------------------------
+/**
+ * Redis 持久化对话记忆 + 溢出摘要。
+ *
+ * 存两条 Redis Key：
+ *   chat:memory:{id}  → 窗口内完整消息（JSON 数组）
+ *   chat:summary:{id} → 超出窗口的历史摘要（纯文本）
+ */
+
+第26行：类定义
+-----------------------------------------------------------------------
+public class RedisChatMemory implements ChatMemory {
+  → 实现 Spring AI 的 ChatMemory 接口，这样可以替换原来的 MessageWindowChatMemory
+
+第28-32行：常量定义
+-----------------------------------------------------------------------
+private static final Logger log = LoggerFactory.getLogger(RedisChatMemory.class);
+
+private static final String KEY_PREFIX = "chat:memory:";    // 消息窗口的Key前缀
+private static final String SUMMARY_PREFIX = "chat:summary:"; // 摘要的Key前缀
+private static final long TTL_MINUTES = 30;                  // 过期时间30分钟
+
+第34-36行：成员变量
+-----------------------------------------------------------------------
+private final RedisTemplate<String, String> redisTemplate;  // Redis操作模板
+private final ObjectMapper objectMapper;                     // JSON序列化工具
+private final int maxMessages;                               // 窗口大小（最大消息数）
+
+第38-43行：构造函数
+-----------------------------------------------------------------------
+public RedisChatMemory(RedisTemplate<String, String> redisTemplate, int maxMessages) {
+    this.redisTemplate = redisTemplate;    // 注入Redis模板
+    this.objectMapper = new ObjectMapper(); // 创建JSON工具实例
+    this.maxMessages = maxMessages;        // 窗口大小（AiConfig中传10）
+    log.info("RedisChatMemory 初始化完成，窗口={}条，TTL={}分钟", maxMessages, TTL_MINUTES);
+}
+
+第45-65行：add()方法 - 添加消息到记忆
+-----------------------------------------------------------------------
+@Override
+public void add(String conversationId, List<Message> messages) {
+    try {
+        // 1. 先读取已有记录
+        List<MsgRecord> records = readRecords(conversationId);
+        
+        // 2. 将新消息转为MsgRecord格式，加入列表
+        for (Message m : messages) {
+            records.add(MsgRecord.from(m));
+        }
+
+        // 3. 判断是否超出窗口
+        if (records.size() > maxMessages) {
+            // 超出部分的数量
+            int overflow = records.size() - maxMessages;
+            // 取出超出的旧消息（列表开头部分）
+            List<MsgRecord> old = records.subList(0, overflow);
+            // 将旧消息追加到摘要中
+            appendSummary(conversationId, old);
+            // 截断列表，只保留最新的maxMessages条
+            records = records.subList(overflow, records.size());
+        }
+
+        // 4. 将截断后的消息写回Redis
+        writeRecords(KEY_PREFIX + conversationId, records);
+    } catch (Exception e) {
+        log.error("Redis 写入记忆失败", e);
+    }
+}
+
+第67-72行：get()方法 - 获取记忆消息
+-----------------------------------------------------------------------
+@Override
+public List<Message> get(String conversationId) {
+    // 读取记录
+    List<MsgRecord> records = readRecords(conversationId);
+    // 如果为空返回空列表
+    if (records.isEmpty()) return List.of();
+    // 转换为Spring AI的Message对象返回
+    return records.stream().map(MsgRecord::toMessage).toList();
+}
+
+第74-79行：clear()方法 - 清除会话记忆
+-----------------------------------------------------------------------
+@Override
+public void clear(String conversationId) {
+    // 删除消息窗口Key
+    redisTemplate.delete(KEY_PREFIX + conversationId);
+    // 删除摘要Key
+    redisTemplate.delete(SUMMARY_PREFIX + conversationId);
+    log.debug("清除会话: {}", conversationId);
+}
+
+第81-87行：getSummary()方法 - 获取历史摘要（新增方法）
+-----------------------------------------------------------------------
+public String getSummary(String conversationId) {
+    // 从Redis读取摘要
+    String summary = redisTemplate.opsForValue().get(SUMMARY_PREFIX + conversationId);
+    // 空值处理
+    return summary != null ? summary : "";
+}
+
+第91-108行：appendSummary()方法 - 追加消息到摘要
+-----------------------------------------------------------------------
+private void appendSummary(String conversationId, List<MsgRecord> overflow) {
+    StringBuilder sb = new StringBuilder();
+    
+    // 先读取已有摘要，追加到前面
+    String existing = redisTemplate.opsForValue().get(SUMMARY_PREFIX + conversationId);
+    if (existing != null && !existing.isEmpty()) {
+        sb.append(existing).append("\n");
+    }
+    
+    // 将每条溢出消息格式化为"用户：xxx"或"AI：xxx"
+    for (MsgRecord r : overflow) {
+        String label = "USER".equals(r.role) ? "用户" : "AI";
+        sb.append(label).append("：").append(r.content).append("\n");
+    }
+    
+    // 摘要截断，最多2000字符，防止无限膨胀
+    String text = sb.toString();
+    if (text.length() > 2000) {
+        text = text.substring(text.length() - 2000);
+    }
+    
+    // 写入Redis，设置30分钟过期
+    redisTemplate.opsForValue().set(SUMMARY_PREFIX + conversationId, text, TTL_MINUTES, TimeUnit.MINUTES);
+    log.debug("摘要已更新，长度={}", text.length());
+}
+
+第110-120行：readRecords()方法 - 从Redis读取记录
+-----------------------------------------------------------------------
+private List<MsgRecord> readRecords(String conversationId) {
+    // 读取JSON字符串
+    String json = redisTemplate.opsForValue().get(KEY_PREFIX + conversationId);
+    if (json == null || json.isEmpty()) return new ArrayList<>();
+    
+    try {
+        // JSON反序列化为MsgRecord列表
+        return objectMapper.readValue(json,
+                objectMapper.getTypeFactory().constructCollectionType(List.class, MsgRecord.class));
+    } catch (JsonProcessingException e) {
+        log.error("Redis 记忆反序列化失败", e);
+        return new ArrayList<>();
+    }
+}
+
+第122-129行：writeRecords()方法 - 将记录写入Redis
+-----------------------------------------------------------------------
+private void writeRecords(String key, List<MsgRecord> records) {
+    try {
+        // 序列化为JSON字符串
+        String json = objectMapper.writeValueAsString(records);
+        // 写入Redis，设置30分钟过期
+        redisTemplate.opsForValue().set(key, json, TTL_MINUTES, TimeUnit.MINUTES);
+    } catch (JsonProcessingException e) {
+        log.error("Redis 记忆序列化失败", e);
+    }
+}
+
+第131-155行：MsgRecord内部类 - 消息记录（用于序列化）
+-----------------------------------------------------------------------
+public static class MsgRecord {
+    public String role;    // 角色：USER / ASSISTANT / SYSTEM
+    public String content; // 内容
+    
+    public MsgRecord() {}  // 无参构造（Jackson需要）
+    
+    public MsgRecord(String role, String content) {
+        this.role = role;
+        this.content = content;
+    }
+    
+    // 从Spring AI的Message转换为MsgRecord
+    static MsgRecord from(Message m) {
+        if (m == null) return new MsgRecord("USER", "");
+        return new MsgRecord(m.getMessageType().name(), m.getText());
+    }
+    
+    // 从MsgRecord转换回Spring AI的Message
+    Message toMessage() {
+        if (content == null) return new UserMessage("");
+        // 根据role创建不同类型的Message
+        return switch (role) {
+            case "ASSISTANT" -> new AssistantMessage(content);
+            case "SYSTEM" -> new SystemMessage(content);
+            default -> new UserMessage(content);
+        };
+    }
+}
+
+为什么要用MsgRecord而不是直接序列化Message？
+→ Message是接口，Spring AI的实现类有复杂的内部结构，Jackson反序列化会失败。
+→ MsgRecord只有role和content两个字段，简单易序列化。
+
+=======================================================================
+二、AiConfig.java - 修改 chatMemory Bean
+=======================================================================
+
+第13行：新增导入
+-----------------------------------------------------------------------
+import org.springframework.data.redis.core.RedisTemplate;
+
+第25-28行：修改 chatMemory Bean（替换原来的MessageWindowChatMemory）
+-----------------------------------------------------------------------
+@Bean
+public ChatMemory chatMemory(RedisTemplate<String, String> redisTemplate) {
+    return new RedisChatMemory(redisTemplate, 10);
+}
+
+对比修改前：
+@Bean
+public ChatMemory chatMemory() {
+    return MessageWindowChatMemory.builder()
+            .maxMessages(10)
+            .build();
+}
+
+修改说明：
+1. 依赖注入RedisTemplate（Spring Boot自动配置）
+2. 创建RedisChatMemory实例，窗口大小10条
+3. 返回类型还是ChatMemory接口，业务代码无需改动
+
+=======================================================================
+三、RagAgentService.java - 摘要注入 System Prompt
+=======================================================================
+
+第18行：新增导入
+-----------------------------------------------------------------------
+import com.ruoyi.ai.config.RedisChatMemory;
+
+第35行：新增成员变量
+-----------------------------------------------------------------------
+private final RedisChatMemory redisMemory;
+
+第39-48行：构造函数修改
+-----------------------------------------------------------------------
+public RagAgentService(ChatClient.Builder builder, VectorStore vectorStore,
+                       ChatMemory chatMemory, IProductService productService) {
+    this.vectorStore = vectorStore;
+    this.productService = productService;
+    this.redisMemory = (RedisChatMemory) chatMemory;  // 类型转换，获取getSummary方法
+    this.ragClient = builder
+            .defaultAdvisors(PromptChatMemoryAdvisor.builder(chatMemory).build())
+            .build();
+    log.info("RAG Agent 初始化完成（混合检索模式）");
+}
+
+为什么要类型转换？
+→ ChatMemory接口没有getSummary方法，需要转为RedisChatMemory类型才能调用。
+→ 因为AiConfig返回的实际是RedisChatMemory实例，所以转换是安全的。
+
+第50-69行：buildSystemPrompt()方法 - 组装带摘要的System Prompt
+-----------------------------------------------------------------------
+private String buildSystemPrompt(String sessionId, List<Document> docs) {
+    // 获取历史摘要
+    String summary = redisMemory.getSummary(sessionId);
+
+    StringBuilder sb = new StringBuilder();
+    sb.append("你是超市智能导购「小智」。请基于以下信息回答用户问题。回答简洁亲切，控制在 150 字以内。\n\n");
+
+    // 如果有摘要，先插入摘要
+    if (!summary.isEmpty()) {
+        sb.append("---历史摘要---\n").append(summary).append("\n");
+    }
+
+    // 再插入检索到的商品信息
+    sb.append("---商品信息---\n");
+    for (int i = 0; i < docs.size(); i++) {
+        sb.append("【").append(i + 1).append("】").append(docs.get(i).getText()).append("\n");
+    }
+
+    return sb.toString();
+}
+
+最终System Prompt格式：
+-----------------------------------------------------------------------
+你是超市智能导购「小智」。请基于以下信息回答用户问题。回答简洁亲切，控制在 150 字以内。
+
+---历史摘要---
+用户：我想买零食
+AI：好的，推荐您几款热门零食...
+用户：有没有巧克力？
+AI：有的，这几款巧克力很受欢迎...
+
+---商品信息---
+【1】商品名：德芙巧克力...
+【2】商品名：费列罗巧克力...
+-----------------------------------------------------------------------
+
+第161-166行：同步聊天调用
+-----------------------------------------------------------------------
+return ragClient.prompt()
+        .system(buildSystemPrompt(sessionId, docs))  // 使用带摘要的System Prompt
+        .user(userMessage)
+        .advisors(a -> a.param("chatMemoryConversationId", sessionId))
+        .call()
+        .content();
+
+第173-178行：流式聊天调用
+-----------------------------------------------------------------------
+return ragClient.prompt()
+        .system(buildSystemPrompt(sessionId, docs))  // 使用带摘要的System Prompt
+        .user(userMessage)
+        .advisors(a -> a.param("chatMemoryConversationId", sessionId))
+        .stream()
+        .content();
+
+=======================================================================
+四、ChatServiceImpl.java - 摘要注入 User Message
+=======================================================================
+
+第11行：新增导入
+-----------------------------------------------------------------------
+import com.ruoyi.ai.config.RedisChatMemory;
+
+第26行：新增成员变量
+-----------------------------------------------------------------------
+private final RedisChatMemory redisMemory;
+
+第28-29行：构造函数修改
+-----------------------------------------------------------------------
+public ChatServiceImpl(ChatClient chatClient, ChatMemory chatMemory, Resource guidePrompt) {
+    this.redisMemory = (RedisChatMemory) chatMemory;  // 类型转换
+    // ... 其余代码不变
+}
+
+第54-61行：同步聊天 - 注入摘要
+-----------------------------------------------------------------------
+@Override
+public ChatResult chat(String sessionId, String message) {
+    log.info("收到对话请求, sessionId={}, message={}", sessionId, message);
+    long start = System.currentTimeMillis();
+    try {
+        // 获取历史摘要
+        String summary = redisMemory.getSummary(sessionId);
+        
+        // 如果有摘要，拼接到用户消息前面
+        String fullMessage = summary.isEmpty() ? message
+                : "【历史摘要】" + summary + "\n【用户当前问题】" + message;
+
+        String answer = chatClient.prompt()
+                .user(fullMessage)  // 使用拼接后的消息
+                .advisors(a -> a.param("chatMemoryConversationId", sessionId))
+                .advisors(memoryAdvisor)
+                .call()
+                .content();
+        // ...
+    }
+}
+
+拼接后的用户消息格式：
+-----------------------------------------------------------------------
+【历史摘要】
+用户：我想买牛奶
+AI：好的，推荐您几款牛奶...
+【用户当前问题】
+哪个牌子的牛奶比较好？
+-----------------------------------------------------------------------
+
+第100-105行：流式聊天 - 注入摘要
+-----------------------------------------------------------------------
+@Override
+public Flux<String> chatStream(String sessionId, String message) {
+    log.info("收到流式对话请求, sessionId={}, message={}", sessionId, message);
+    long start = System.currentTimeMillis();
+    
+    // 获取历史摘要，拼接消息
+    String summary = redisMemory.getSummary(sessionId);
+    String fullMessage = summary.isEmpty() ? message
+            : "【历史摘要】" + summary + "\n【用户当前问题】" + message;
+    
+    return chatClient.prompt()
+            .user(fullMessage)  // 使用拼接后的消息
+            // ...
+}
+
+=======================================================================
+五、整体流程总结
+=======================================================================
+
+用户发送消息 → AI回复的完整流程：
+
+1. 用户发送消息
+   → ChatOrchestrator.chat()
+   → RouterService.classify() 判断意图
+   → 分发到 RagAgentService 或 ChatServiceImpl
+
+2. 获取历史摘要
+   → redisMemory.getSummary(sessionId)
+   → 从Redis读取 chat:summary:{sessionId}
+
+3. 拼接消息
+   → 如果有摘要："【历史摘要】xxx\n【用户当前问题】xxx"
+   → 如果无摘要：直接使用用户消息
+
+4. 调用LLM
+   → RagAgentService：摘要 + 检索结果 → System Prompt
+   → ChatServiceImpl：摘要 + 用户消息 → User Message
+
+5. 保存对话记录
+   → PromptChatMemoryAdvisor 自动调用 ChatMemory.add()
+   → RedisChatMemory.add() 写入Redis
+   → 超出10条时，旧消息移到 chat:summary
+
+6. TTL过期清理
+   → 所有Redis Key设置30分钟TTL
+   → 超时自动删除，清理僵尸会话
+
+=======================================================================
+六、设计亮点
+=======================================================================
+
+1. 接口兼容：实现ChatMemory接口，业务代码零改动
+2. 双Key存储：chat:memory存完整消息，chat:summary存溢出摘要
+3. Last N + Summary：既保留最近上下文，又不丢失历史
+4. 摘要截断：2000字符上限，防止Prompt无限膨胀
+5. TTL自动清理：30分钟过期，无需手动维护
+6. 序列化友好：MsgRecord简单结构，解决Message接口反序列化问题
+
+=======================================================================
+七、关键API变更（Spring AI 1.1.2）
+=======================================================================
+
+1. ChatMemory.add()：新增 add(String, List<Message>) 抽象方法
+2. ChatMemory.get()：只有一个参数（无lastN），返回全部消息
+3. Message.getText()：替代原来的 Message.getContent()
+4. UserMessage/AssistantMessage/SystemMessage：构造函数接受String
+
+=======================================================================

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.business.mapper.PortalOrderMapper">
+
+    <resultMap type="PortalOrder" id="PortalOrderResult">
+        <id     property="id"            column="id"             />
+        <result property="orderNo"       column="order_no"       />
+        <result property="sessionId"     column="session_id"     />
+        <result property="customerPhone" column="customer_phone" />
+        <result property="customerName"  column="customer_name"  />
+        <result property="totalAmount"   column="total_amount"   />
+        <result property="itemCount"     column="item_count"     />
+        <result property="status"        column="status"         />
+        <result property="completeTime"  column="complete_time"  />
+        <result property="remark"        column="remark"         />
+        <result property="createTime"    column="create_time"    />
+    </resultMap>
+
+    <sql id="selectPortalOrderVo">
+        select id, order_no, session_id, customer_phone, customer_name,
+               total_amount, item_count, status, complete_time, remark, create_time
+        from cdc_portal_order
+    </sql>
+
+    <select id="selectPortalOrderList" parameterType="PortalOrder" resultMap="PortalOrderResult">
+        <include refid="selectPortalOrderVo"/>
+        <where>
+            <if test="orderNo != null and orderNo != ''">
+                AND order_no like concat('%', #{orderNo}, '%')
+            </if>
+            <if test="customerPhone != null and customerPhone != ''">
+                AND customer_phone = #{customerPhone}
+            </if>
+            <if test="customerName != null and customerName != ''">
+                AND customer_name like concat('%', #{customerName}, '%')
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+            <if test="params.beginTime != null and params.beginTime != ''">
+                and date_format(create_time,'%Y%m%d') &gt;= date_format(#{params.beginTime},'%Y%m%d')
+            </if>
+            <if test="params.endTime != null and params.endTime != ''">
+                and date_format(create_time,'%Y%m%d') &lt;= date_format(#{params.endTime},'%Y%m%d')
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <select id="selectPortalOrderById" parameterType="Long" resultMap="PortalOrderResult">
+        <include refid="selectPortalOrderVo"/>
+        where id = #{id}
+    </select>
+
+    <select id="selectPortalOrderByOrderNo" parameterType="String" resultMap="PortalOrderResult">
+        <include refid="selectPortalOrderVo"/>
+        where order_no = #{orderNo}
+    </select>
+
+    <select id="getTodayOrderCount" parameterType="String" resultType="int">
+        SELECT COUNT(*) FROM cdc_portal_order WHERE order_no LIKE CONCAT(#{datePrefix},'%')
+    </select>
+
+    <insert id="insertPortalOrder" parameterType="PortalOrder" useGeneratedKeys="true" keyProperty="id">
+        insert into cdc_portal_order (
+            <if test="orderNo != null and orderNo != ''">order_no,</if>
+            <if test="sessionId != null and sessionId != ''">session_id,</if>
+            <if test="customerPhone != null and customerPhone != ''">customer_phone,</if>
+            <if test="customerName != null and customerName != ''">customer_name,</if>
+            <if test="totalAmount != null">total_amount,</if>
+            <if test="itemCount != null">item_count,</if>
+            <if test="status != null and status != ''">status,</if>
+            <if test="remark != null and remark != ''">remark,</if>
+            create_time
+        )values(
+            <if test="orderNo != null and orderNo != ''">#{orderNo},</if>
+            <if test="sessionId != null and sessionId != ''">#{sessionId},</if>
+            <if test="customerPhone != null and customerPhone != ''">#{customerPhone},</if>
+            <if test="customerName != null and customerName != ''">#{customerName},</if>
+            <if test="totalAmount != null">#{totalAmount},</if>
+            <if test="itemCount != null">#{itemCount},</if>
+            <if test="status != null and status != ''">#{status},</if>
+            <if test="remark != null and remark != ''">#{remark},</if>
+            sysdate()
+        )
+    </insert>
+
+    <update id="updatePortalOrder" parameterType="PortalOrder">
+        update cdc_portal_order
+        <set>
+            <if test="sessionId != null and sessionId != ''">session_id = #{sessionId},</if>
+            <if test="customerPhone != null and customerPhone != ''">customer_phone = #{customerPhone},</if>
+            <if test="customerName != null and customerName != ''">customer_name = #{customerName},</if>
+            <if test="totalAmount != null">total_amount = #{totalAmount},</if>
+            <if test="itemCount != null">item_count = #{itemCount},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="completeTime != null">complete_time = #{completeTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </set>
+        where id = #{id}
+    </update>
+
+</mapper>

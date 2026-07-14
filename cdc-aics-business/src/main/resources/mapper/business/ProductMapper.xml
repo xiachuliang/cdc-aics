@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.business.mapper.ProductMapper">
+
+    <resultMap type="Product" id="ProductResult">
+        <id     property="id"           column="id"            />
+        <result property="categoryId"   column="category_id"   />
+        <result property="barcode"      column="barcode"       />
+        <result property="productName"  column="product_name"  />
+        <result property="price"        column="price"         />
+        <result property="stock"        column="stock"         />
+        <result property="unit"         column="unit"          />
+        <result property="shelfArea"    column="shelf_area"    />
+        <result property="imageUrl"     column="image_url"     />
+        <result property="description"  column="description"   />
+        <result property="status"       column="status"        />
+        <result property="delFlag"      column="del_flag"      />
+        <result property="createBy"     column="create_by"     />
+        <result property="createTime"   column="create_time"   />
+        <result property="updateBy"     column="update_by"     />
+        <result property="updateTime"   column="update_time"   />
+        <result property="remark"       column="remark"        />
+    </resultMap>
+
+    <sql id="selectProductVo">
+        select id, category_id, barcode, product_name, price, stock, unit,
+               shelf_area, image_url, description,
+               status, del_flag, create_by, create_time, update_by, update_time, remark
+        from cdc_product
+    </sql>
+
+    <select id="selectProductList" parameterType="Product" resultMap="ProductResult">
+        <include refid="selectProductVo"/>
+        <where>
+            del_flag = '0'
+            <if test="categoryId != null">
+                AND category_id = #{categoryId}
+            </if>
+            <if test="productName != null and productName != ''">
+                AND product_name like concat('%', #{productName}, '%')
+            </if>
+            <if test="barcode != null and barcode != ''">
+                AND barcode = #{barcode}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+            <if test="shelfArea != null and shelfArea != ''">
+                AND shelf_area like concat('%', #{shelfArea}, '%')
+            </if>
+            <if test="params.beginTime != null and params.beginTime != ''">
+                and date_format(create_time,'%Y%m%d') &gt;= date_format(#{params.beginTime},'%Y%m%d')
+            </if>
+            <if test="params.endTime != null and params.endTime != ''">
+                and date_format(create_time,'%Y%m%d') &lt;= date_format(#{params.endTime},'%Y%m%d')
+            </if>
+        </where>
+        order by id desc
+    </select>
+
+    <select id="selectProductById" parameterType="Long" resultMap="ProductResult">
+        <include refid="selectProductVo"/>
+        where id = #{id}
+    </select>
+
+    <select id="selectProductByIdForUpdate" parameterType="Long" resultMap="ProductResult">
+        <include refid="selectProductVo"/>
+        where id = #{id} for update
+    </select>
+
+    <select id="selectProductByBarcode" parameterType="String" resultMap="ProductResult">
+        <include refid="selectProductVo"/>
+        where barcode = #{barcode} and del_flag = '0'
+    </select>
+
+    <select id="checkBarcodeUnique" parameterType="String" resultMap="ProductResult">
+        <include refid="selectProductVo"/>
+        where barcode = #{barcode} limit 1
+    </select>
+
+    <insert id="insertProduct" parameterType="Product">
+        insert into cdc_product (
+            scene_id,
+            <if test="categoryId != null">category_id,</if>
+            <if test="barcode != null and barcode != ''">barcode,</if>
+            <if test="productName != null and productName != ''">product_name,</if>
+            <if test="price != null">price,</if>
+            <if test="stock != null">stock,</if>
+            <if test="unit != null">unit,</if>
+            <if test="shelfArea != null and shelfArea != ''">shelf_area,</if>
+            <if test="imageUrl != null">image_url,</if>
+            <if test="description != null">description,</if>
+            <if test="status != null and status != ''">status,</if>
+            <if test="createBy != null and createBy != ''">create_by,</if>
+            <if test="remark != null and remark != ''">remark,</if>
+            create_time
+        )values(
+            1,
+            <if test="categoryId != null">#{categoryId},</if>
+            <if test="barcode != null and barcode != ''">#{barcode},</if>
+            <if test="productName != null and productName != ''">#{productName},</if>
+            <if test="price != null">#{price},</if>
+            <if test="stock != null">#{stock},</if>
+            <if test="unit != null">#{unit},</if>
+            <if test="shelfArea != null and shelfArea != ''">#{shelfArea},</if>
+            <if test="imageUrl != null">#{imageUrl},</if>
+            <if test="description != null">#{description},</if>
+            <if test="status != null and status != ''">#{status},</if>
+            <if test="createBy != null and createBy != ''">#{createBy},</if>
+            <if test="remark != null and remark != ''">#{remark},</if>
+            sysdate()
+        )
+    </insert>
+
+    <update id="updateProduct" parameterType="Product">
+        update cdc_product
+        <set>
+            <if test="categoryId != null">category_id = #{categoryId},</if>
+            <if test="barcode != null and barcode != ''">barcode = #{barcode},</if>
+            <if test="productName != null and productName != ''">product_name = #{productName},</if>
+            <if test="price != null">price = #{price},</if>
+            <if test="stock != null">stock = #{stock},</if>
+            <if test="unit != null">unit = #{unit},</if>
+            <if test="shelfArea != null and shelfArea != ''">shelf_area = #{shelfArea},</if>
+            <if test="imageUrl != null">image_url = #{imageUrl},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = sysdate()
+        </set>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteProductById" parameterType="Long">
+        update cdc_product set del_flag = '2' where id = #{id}
+    </delete>
+
+    <delete id="deleteProductByIds" parameterType="Long">
+        update cdc_product set del_flag = '2' where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+</mapper>

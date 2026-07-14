@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.business.mapper.PurchaseOrderMapper">
+
+    <resultMap type="PurchaseOrder" id="PurchaseOrderResult">
+        <id     property="id"           column="id"            />
+        <result property="orderNo"      column="order_no"      />
+        <result property="supplierId"   column="supplier_id"   />
+        <result property="totalAmount"  column="total_amount"  />
+        <result property="status"       column="status"        />
+        <result property="orderDate"    column="order_date"    />
+        <result property="receiveDate"  column="receive_date"  />
+        <result property="createBy"     column="create_by"     />
+        <result property="createTime"   column="create_time"   />
+        <result property="updateBy"     column="update_by"     />
+        <result property="updateTime"   column="update_time"   />
+        <result property="remark"       column="remark"        />
+    </resultMap>
+
+    <sql id="selectPurchaseOrderVo">
+        select id, order_no, supplier_id, total_amount, status,
+               order_date, receive_date,
+               create_by, create_time, update_by, update_time, remark
+        from cdc_purchase_order
+    </sql>
+
+    <select id="selectPurchaseOrderList" parameterType="PurchaseOrder" resultMap="PurchaseOrderResult">
+        <include refid="selectPurchaseOrderVo"/>
+        <where>
+            <if test="orderNo != null and orderNo != ''">
+                AND order_no like concat('%', #{orderNo}, '%')
+            </if>
+            <if test="supplierId != null">
+                AND supplier_id = #{supplierId}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+            <if test="params.beginTime != null and params.beginTime != ''">
+                and date_format(order_date,'%Y%m%d') &gt;= date_format(#{params.beginTime},'%Y%m%d')
+            </if>
+            <if test="params.endTime != null and params.endTime != ''">
+                and date_format(order_date,'%Y%m%d') &lt;= date_format(#{params.endTime},'%Y%m%d')
+            </if>
+        </where>
+        order by id desc
+    </select>
+
+    <select id="selectPurchaseOrderById" parameterType="Long" resultMap="PurchaseOrderResult">
+        <include refid="selectPurchaseOrderVo"/>
+        where id = #{id}
+    </select>
+
+    <select id="getTodayOrderCount" parameterType="String" resultType="int">
+        SELECT COUNT(*) FROM cdc_purchase_order WHERE order_no LIKE CONCAT(#{datePrefix},'%')
+    </select>
+
+    <insert id="insertPurchaseOrder" parameterType="PurchaseOrder" useGeneratedKeys="true" keyProperty="id">
+        insert into cdc_purchase_order (
+            <if test="orderNo != null and orderNo != ''">order_no,</if>
+            <if test="supplierId != null">supplier_id,</if>
+            <if test="totalAmount != null">total_amount,</if>
+            <if test="status != null and status != ''">status,</if>
+            <if test="orderDate != null">order_date,</if>
+            <if test="createBy != null and createBy != ''">create_by,</if>
+            <if test="remark != null and remark != ''">remark,</if>
+            create_time
+        )values(
+            <if test="orderNo != null and orderNo != ''">#{orderNo},</if>
+            <if test="supplierId != null">#{supplierId},</if>
+            <if test="totalAmount != null">#{totalAmount},</if>
+            <if test="status != null and status != ''">#{status},</if>
+            <if test="orderDate != null">#{orderDate},</if>
+            <if test="createBy != null and createBy != ''">#{createBy},</if>
+            <if test="remark != null and remark != ''">#{remark},</if>
+            sysdate()
+        )
+    </insert>
+
+    <update id="updatePurchaseOrder" parameterType="PurchaseOrder">
+        update cdc_purchase_order
+        <set>
+            <if test="orderNo != null and orderNo != ''">order_no = #{orderNo},</if>
+            <if test="supplierId != null">supplier_id = #{supplierId},</if>
+            <if test="totalAmount != null">total_amount = #{totalAmount},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="orderDate != null">order_date = #{orderDate},</if>
+            <if test="receiveDate != null">receive_date = #{receiveDate},</if>
+            <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = sysdate()
+        </set>
+        where id = #{id}
+    </update>
+
+    <delete id="deletePurchaseOrderById" parameterType="Long">
+        delete from cdc_purchase_order where id = #{id}
+    </delete>
+
+    <delete id="deletePurchaseOrderByIds" parameterType="Long">
+        delete from cdc_purchase_order where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+</mapper>

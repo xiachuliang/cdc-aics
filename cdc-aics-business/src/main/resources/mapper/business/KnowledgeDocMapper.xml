@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.business.mapper.KnowledgeDocMapper">
+
+    <resultMap type="KnowledgeDoc" id="KnowledgeDocResult">
+        <id     property="id"         column="id"/>
+        <result property="title"      column="title"/>
+        <result property="category"   column="category"/>
+        <result property="content"    column="content"/>
+        <result property="fileSize"   column="file_size"/>
+        <result property="chunked"    column="chunked"/>
+        <result property="chunkCount" column="chunk_count"/>
+        <result property="chunkSize"  column="chunk_size"/>
+        <result property="overlap"    column="overlap"/>
+        <result property="docId"      column="doc_id"/>
+        <result property="createBy"   column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateBy"   column="update_by"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="remark"     column="remark"/>
+    </resultMap>
+
+    <sql id="selectVo">
+        SELECT id, title, category, content, file_size, chunked, chunk_count,
+               chunk_size, overlap, doc_id, create_by, create_time, update_by,
+               update_time, remark
+        FROM cdc_knowledge_doc
+    </sql>
+
+    <select id="selectById" parameterType="Long" resultMap="KnowledgeDocResult">
+        <include refid="selectVo"/>
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectList" parameterType="KnowledgeDoc" resultMap="KnowledgeDocResult">
+        <include refid="selectVo"/>
+        <where>
+            <if test="title != null and title != ''">
+                AND title LIKE CONCAT('%', #{title}, '%')
+            </if>
+            <if test="category != null and category != ''">
+                AND category = #{category}
+            </if>
+            <if test="chunked != null and chunked != ''">
+                AND chunked = #{chunked}
+            </if>
+        </where>
+        ORDER BY create_time DESC
+    </select>
+
+    <insert id="insert" parameterType="KnowledgeDoc" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO cdc_knowledge_doc (
+            title, category, content, file_size, chunked, chunk_count,
+            chunk_size, overlap, doc_id, create_by, create_time, remark
+        ) VALUES (
+            #{title}, #{category}, #{content}, #{fileSize}, #{chunked}, #{chunkCount},
+            #{chunkSize}, #{overlap}, #{docId}, #{createBy}, sysdate(), #{remark}
+        )
+    </insert>
+
+    <update id="update" parameterType="KnowledgeDoc">
+        UPDATE cdc_knowledge_doc
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="category != null">category = #{category},</if>
+            <if test="content != null">content = #{content},</if>
+            <if test="chunked != null">chunked = #{chunked},</if>
+            <if test="chunkCount != null">chunk_count = #{chunkCount},</if>
+            <if test="chunkSize != null">chunk_size = #{chunkSize},</if>
+            <if test="overlap != null">overlap = #{overlap},</if>
+            <if test="docId != null">doc_id = #{docId},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            update_time = sysdate()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById" parameterType="Long">
+        DELETE FROM cdc_knowledge_doc WHERE id = #{id}
+    </delete>
+
+</mapper>

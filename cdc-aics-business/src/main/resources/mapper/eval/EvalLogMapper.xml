@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.business.eval.mapper.EvalLogMapper">
+
+    <resultMap type="com.ruoyi.business.eval.domain.EvalLog" id="EvalLogResult">
+        <id     property="id"          column="id"           />
+        <result property="sessionId"   column="session_id"   />
+        <result property="question"    column="question"     />
+        <result property="answer"      column="answer"       />
+        <result property="intent"      column="intent"       />
+        <result property="score"       column="score"        />
+        <result property="judgeReason" column="judge_reason" />
+        <result property="latencyMs"   column="latency_ms"   />
+        <result property="createTime"  column="create_time"  />
+    </resultMap>
+
+    <sql id="selectVo">
+        select id, session_id, question, answer, intent, score, judge_reason, latency_ms, create_time
+        from cdc_eval_log
+    </sql>
+
+    <insert id="insertEvalLog" parameterType="com.ruoyi.business.eval.domain.EvalLog" useGeneratedKeys="true" keyProperty="id">
+        insert into cdc_eval_log (session_id, question, answer, intent, score, judge_reason, latency_ms, create_time)
+        values (#{sessionId}, #{question}, #{answer}, #{intent}, #{score}, #{judgeReason}, #{latencyMs}, sysdate())
+    </insert>
+
+    <select id="selectEvalLogList" parameterType="com.ruoyi.business.eval.domain.EvalLog" resultMap="EvalLogResult">
+        <include refid="selectVo"/>
+        <where>
+            <if test="intent != null and intent != ''">and intent = #{intent}</if>
+            <if test="score != null">and score = #{score}</if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <select id="selectEvalLogById" parameterType="Long" resultMap="EvalLogResult">
+        <include refid="selectVo"/> where id = #{id}
+    </select>
+
+    <delete id="deleteEvalLogByIds" parameterType="Long">
+        delete from cdc_eval_log where id in
+        <foreach collection="array" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </delete>
+
+    <select id="selectAvgScore" resultType="Double">
+        select avg(score) from cdc_eval_log
+    </select>
+</mapper>

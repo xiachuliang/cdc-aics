@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.business.mapper.InventoryLogMapper">
+
+    <resultMap type="InventoryLog" id="InventoryLogResult">
+        <id     property="id"             column="id"              />
+        <result property="productId"      column="product_id"      />
+        <result property="changeType"     column="change_type"     />
+        <result property="changeQuantity" column="change_quantity" />
+        <result property="stockBefore"    column="stock_before"    />
+        <result property="stockAfter"     column="stock_after"     />
+        <result property="relatedOrderNo" column="related_order_no"/>
+        <result property="createBy"       column="create_by"       />
+        <result property="createTime"     column="create_time"     />
+        <result property="remark"         column="remark"          />
+    </resultMap>
+
+    <sql id="selectInventoryLogVo">
+        select id, product_id, change_type, change_quantity, stock_before, stock_after,
+               related_order_no, create_by, create_time, remark
+        from cdc_inventory_log
+    </sql>
+
+    <select id="selectInventoryLogList" parameterType="InventoryLog" resultMap="InventoryLogResult">
+        <include refid="selectInventoryLogVo"/>
+        <where>
+            <if test="productId != null">
+                AND product_id = #{productId}
+            </if>
+            <if test="changeType != null and changeType != ''">
+                AND change_type = #{changeType}
+            </if>
+            <if test="relatedOrderNo != null and relatedOrderNo != ''">
+                AND related_order_no like concat('%', #{relatedOrderNo}, '%')
+            </if>
+            <if test="params.beginTime != null and params.beginTime != ''">
+                and date_format(create_time,'%Y%m%d') &gt;= date_format(#{params.beginTime},'%Y%m%d')
+            </if>
+            <if test="params.endTime != null and params.endTime != ''">
+                and date_format(create_time,'%Y%m%d') &lt;= date_format(#{params.endTime},'%Y%m%d')
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <select id="selectInventoryLogById" parameterType="Long" resultMap="InventoryLogResult">
+        <include refid="selectInventoryLogVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertInventoryLog" parameterType="InventoryLog" useGeneratedKeys="true" keyProperty="id">
+        insert into cdc_inventory_log (
+            <if test="productId != null">product_id,</if>
+            <if test="changeType != null and changeType != ''">change_type,</if>
+            <if test="changeQuantity != null">change_quantity,</if>
+            <if test="stockBefore != null">stock_before,</if>
+            <if test="stockAfter != null">stock_after,</if>
+            <if test="relatedOrderNo != null and relatedOrderNo != ''">related_order_no,</if>
+            <if test="createBy != null and createBy != ''">create_by,</if>
+            <if test="remark != null and remark != ''">remark,</if>
+            create_time
+        )values(
+            <if test="productId != null">#{productId},</if>
+            <if test="changeType != null and changeType != ''">#{changeType},</if>
+            <if test="changeQuantity != null">#{changeQuantity},</if>
+            <if test="stockBefore != null">#{stockBefore},</if>
+            <if test="stockAfter != null">#{stockAfter},</if>
+            <if test="relatedOrderNo != null and relatedOrderNo != ''">#{relatedOrderNo},</if>
+            <if test="createBy != null and createBy != ''">#{createBy},</if>
+            <if test="remark != null and remark != ''">#{remark},</if>
+            sysdate()
+        )
+    </insert>
+
+</mapper>

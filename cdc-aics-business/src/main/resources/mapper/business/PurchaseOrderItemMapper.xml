@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.business.mapper.PurchaseOrderItemMapper">
+
+    <resultMap type="PurchaseOrderItem" id="PurchaseOrderItemResult">
+        <id     property="id"          column="id"           />
+        <result property="orderId"     column="order_id"     />
+        <result property="productId"   column="product_id"   />
+        <result property="productName" column="product_name" />
+        <result property="price"       column="price"        />
+        <result property="quantity"    column="quantity"     />
+        <result property="subtotal"    column="subtotal"     />
+    </resultMap>
+
+    <sql id="selectPurchaseOrderItemVo">
+        select id, order_id, product_id, product_name, price, quantity, subtotal
+        from cdc_purchase_order_item
+    </sql>
+
+    <select id="selectItemsByOrderId" parameterType="Long" resultMap="PurchaseOrderItemResult">
+        <include refid="selectPurchaseOrderItemVo"/>
+        where order_id = #{orderId}
+    </select>
+
+    <insert id="insertPurchaseOrderItem" parameterType="PurchaseOrderItem">
+        insert into cdc_purchase_order_item (
+            <if test="orderId != null">order_id,</if>
+            <if test="productId != null">product_id,</if>
+            <if test="productName != null and productName != ''">product_name,</if>
+            <if test="price != null">price,</if>
+            <if test="quantity != null">quantity,</if>
+            <if test="subtotal != null">subtotal,</if>
+        )values(
+            <if test="orderId != null">#{orderId},</if>
+            <if test="productId != null">#{productId},</if>
+            <if test="productName != null and productName != ''">#{productName},</if>
+            <if test="price != null">#{price},</if>
+            <if test="quantity != null">#{quantity},</if>
+            <if test="subtotal != null">#{subtotal},</if>
+        )
+    </insert>
+
+    <delete id="deleteItemsByOrderId" parameterType="Long">
+        delete from cdc_purchase_order_item where order_id = #{orderId}
+    </delete>
+
+    <insert id="batchInsert" parameterType="java.util.List">
+        insert into cdc_purchase_order_item (order_id, product_id, product_name, price, quantity, subtotal)
+        values
+        <foreach collection="list" item="item" separator=",">
+            (#{item.orderId}, #{item.productId}, #{item.productName}, #{item.price}, #{item.quantity}, #{item.subtotal})
+        </foreach>
+    </insert>
+
+</mapper>
