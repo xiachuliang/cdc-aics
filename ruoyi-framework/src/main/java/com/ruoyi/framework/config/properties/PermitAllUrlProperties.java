@@ -34,7 +34,6 @@ public class PermitAllUrlProperties implements InitializingBean, ApplicationCont
 
     public String ASTERISK = "*";
 
-    @SuppressWarnings("deprecation")
     @Override
     public void afterPropertiesSet()
     {
@@ -46,7 +45,7 @@ public class PermitAllUrlProperties implements InitializingBean, ApplicationCont
 
             // 获取方法上边的注解 替代path variable 为 *
             Anonymous method = AnnotationUtils.findAnnotation(handlerMethod.getMethod(), Anonymous.class);
-            Optional.ofNullable(method).ifPresent(anonymous -> Objects.requireNonNull(info.getPathPatternsCondition().getPatternValues())
+            Optional.ofNullable(method).ifPresent(anonymous -> Objects.requireNonNull(info.getPathPatternsCondition().getPatternValues()) //
                     .forEach(url -> urls.add(RegExUtils.replaceAll(url, PATTERN, ASTERISK))));
 
             // 获取类上边的注解, 替代path variable 为 *

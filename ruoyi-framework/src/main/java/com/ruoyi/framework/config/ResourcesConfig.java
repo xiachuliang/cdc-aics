@@ -10,6 +10,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import com.ruoyi.common.config.RuoYiConfig;
 import com.ruoyi.common.constant.Constants;
@@ -37,6 +38,18 @@ public class ResourcesConfig implements WebMvcConfigurer
         registry.addResourceHandler("/swagger-ui/**")
                 .addResourceLocations("classpath:/META-INF/resources/webjars/springfox-swagger-ui/")
                 .setCacheControl(CacheControl.maxAge(5, TimeUnit.HOURS).cachePublic());
+    }
+
+    /**
+     * SPA fallback：Vue history 模式路由刷新（如 /ai/eval、/inventory/xxx）
+     * 浏览器会当成后端请求，后端没有对应接口时转发到 index.html 让 Vue 接管
+     */
+    @Override
+    public void addViewControllers(ViewControllerRegistry registry) {
+        registry.addViewController("/{path:^(?!api|static|swagger|v3|error|profile).*}/**")
+                .setViewName("forward:/index.html");
+        registry.addViewController("/{path:^(?!api|static|swagger|v3|error|profile).+}")
+                .setViewName("forward:/index.html");
     }
 
     /**

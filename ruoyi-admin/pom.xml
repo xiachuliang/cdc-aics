@@ -42,6 +42,11 @@
             <artifactId>ruoyi-framework</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.ruoyi</groupId>
+            <artifactId>cdc-aics-ai</artifactId>
+        </dependency>
+
         <!-- 定时任务-->
         <dependency>
             <groupId>com.ruoyi</groupId>
@@ -52,6 +57,18 @@
         <dependency>
             <groupId>com.ruoyi</groupId>
             <artifactId>ruoyi-generator</artifactId>
+        </dependency>
+
+        <!-- CDC业务模块 -->
+        <dependency>
+            <groupId>com.ruoyi</groupId>
+            <artifactId>cdc-aics-business</artifactId>
+        </dependency>
+
+        <!-- CDC门户模块 -->
+        <dependency>
+            <groupId>com.ruoyi</groupId>
+            <artifactId>cdc-aics-portal</artifactId>
         </dependency>
 
     </dependencies>
