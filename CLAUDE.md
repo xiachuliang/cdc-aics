@@ -462,19 +462,6 @@ AI能力层 | ChatClient | Tool Calling | RAG | Text2SQL | Multi-Agent
 
 ---
 
-## 用户背景与学习风格
-
-- **当前身份**：AI 应用开发学习者，目标成为 AI 应用开发方向的**高等水平开发者**
-- **Java/Spring Boot 基础**：薄弱，需要边学 AI 边补基础
-- **学习风格**：动手为主、问题驱动，在真实项目（超市智能导购）上边做边学
-- **教学模式偏好**：我（Claude）讲原理 + 给代码，用户自己动手敲，遇到报错一起排查
-- **每次教学要求**：
-  - 将学习内容展示在对话框中，用户自己去操作
-  - 遇到 Java/Spring Boot 基础概念要顺带讲清楚
-  - 学完后必须及时更新 CLAUDE.md，确保新对话能无缝接续
-
----
-
 ### 当前进度（2026-07-14 更新）
 
 - [x] ✅ 项目框架搭建（若依 + 三模块）
@@ -483,7 +470,7 @@ AI能力层 | ChatClient | Tool Calling | RAG | Text2SQL | Multi-Agent
 - [x] ✅ AI导购聊天UI（portal/chat）
 - [x] ✅ **阶段1：Tool Calling** ← 已完成
    - [x] 原理讲解（LLM不执行代码，只决策调哪个工具传什么参数）
-   - [x] Spring 基础补充（IoC/DI/Bean/接口vs实现类）
+   - [x] Spring（IoC/DI/Bean/接口vs实现类）
    - [x] 创建 ProductTools.java（5个工具）
    - [x] 修改 AiConfig.java 注册工具（.defaultTools(productTools)）
    - [x] 修复 ChatServiceImpl：去掉 @Log、mutate() 不重复注册工具
@@ -508,7 +495,7 @@ AI能力层 | ChatClient | Tool Calling | RAG | Text2SQL | Multi-Agent
    - [x] 踩坑：Spring MVC 不支持直接返回 Flux → 尝试 SseEmitter、StreamingResponseBody、HttpServletResponse
    - [x] 踩坑：blockLast() 阻塞 Servlet 线程 → 响应不提交 → 前端收不到流 → 换 ResponseBodyEmitter + subscribe 异步
    - [x] 踩坑：content-type 影响浏览器缓冲 → text/event-stream 才能实时推送
-   - [ ] 待验证：ResponseBodyEmitter 方案前端是否逐字显示
+   - [x] 已验证：ResponseBodyEmitter 方案前端没有成功
 - [x] ✅ **阶段3：Prompt 工程化** ← 已完成
    - [x] 新建 `prompts/guide.st` StringTemplate 模板文件
    - [x] AiConfig 加 `guidePromptResource()` Bean 加载模板
@@ -526,7 +513,6 @@ AI能力层 | ChatClient | Tool Calling | RAG | Text2SQL | Multi-Agent
    - [x] 踩坑：SimpleVectorStore.builder() 1.1.2 需要传 EmbeddingModel 参数
    - [x] Docker 安装成功，Milvus 镜像拉取失败（网络问题），生产环境再换
    - [x] 认知：Chat 模型（deepseek-v4-flash）和 Embedding 模型（text-embedding-v1）独立
-   - [x] 认知：Embedding 向量化是 DashScope 做的，SimpleVectorStore 只管存
    - [x] 🔄 **重构（2026-07-13）：移除商品向量化**
      - [x] Milvus 向量库不再存商品，只存 FAQ + 文档切片
      - [x] 商品查询统一走 Tools Agent（ProductTools.searchProducts → SQL LIKE）
@@ -882,16 +868,6 @@ ChatController → ChatOrchestrator → RouterService.classify()
 - `get(String)` 单参数（无 lastN），返回全部消息；窗口截断在 add 时做
 - `Message.getText()` 替代 `Message.getContent()`（来自 `Content` 接口）
 - `UserMessage`/`AssistantMessage`/`SystemMessage` 构造方法接受 String，`MessageType` 枚举区分
-
-**学习踩坑记录**：
-1. **`chat:memory:` 不是数据结构**：最初以为 `chat:memory:` 是某种特殊的数据结构，后来才明白只是 Redis Key 的命名前缀，实际数据用 String 类型存储 JSON 数组
-2. **构造器注入 vs 字段注入**：一开始疑惑为什么要用构造器注入，里面还要写 mutate() 逻辑；后来理解构造器注入支持 final 字段、便于单元测试、编译期检查依赖
-3. **为什么 `@PostConstruct` 不常见**：若依 CRUD 只需注入 Mapper 直接用，无需额外处理；当前项目注入 ChatClient 后需要 mutate() 定制，构造器注入一步完成比 @PostConstruct 更简洁
-4. **对话内容写入时机**：误以为 `getSummary(sessionId)` 是写入操作，后来明白写入是由 `PromptChatMemoryAdvisor` 在 `.call()` 执行后自动调用 `chatMemory.add()` 完成的
-5. **多态机制理解**：一开始看不懂为什么 `.advisors(memoryAdvisor)` 就能自动调用 RedisChatMemory 的方法；后来理解接口定义规范、实现类提供具体实现、调用者通过接口调用的多态机制
-6. **三元运算符语法**：对 `summary.isEmpty() ? message : "【历史摘要】..."` 的三元运算符写法不熟悉，后来理解等价于 if-else 判断
-7. **摘要注入位置**：一开始不清楚摘要应该放在 System Prompt 还是 User Message；后来理解 RagAgentService 放在 System Prompt（因为要和检索结果合并），ChatServiceImpl 放在 User Message（因为不需要检索结果）
-8. **TTL 机制理解**：一开始以为是"每隔30分钟清理"，后来明白是"每次写入时刷新30分钟过期时间，持续使用永不过期，停止使用30分钟后自动删除"
 
 **认知**：
 - Redis RDB 快照防重启丢失，生产环境开 AOF `appendfsync everysec`
