@@ -60,7 +60,7 @@ spring:
   # DashScope AI API Key（百炼平台获取: https://bailian.console.aliyun.com/）
   ai:
     dashscope:
-      api-key:
+      api-key: sk-ws-H.EMXDIYE.2ico.MEUCIDGq0v-IbC0sK25z064F9Xn7k_fiI5_T1noDqS0K9gFtAiEAvo8taZQ7PqmpQNEeNO3hBHcILdl-UzQWFbfAxQub5UE
       chat:
         options:
           # 锁定大语言模型（非全模态），避免全态额度不足
