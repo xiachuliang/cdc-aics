@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.business.ranking.mapper.RecommendMapper">
+
+    <resultMap type="com.ruoyi.business.ranking.domain.Recommend" id="RecommendResult">
+        <id     property="id"            column="id"             />
+        <result property="productId"     column="product_id"     />
+        <result property="score"         column="score"          />
+        <result property="reason"        column="reason"         />
+        <result property="status"        column="status"         />
+        <result property="createBy"      column="create_by"      />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"      column="update_by"      />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"        column="remark"         />
+        <result property="productName"   column="product_name"   />
+        <result property="productPrice"  column="product_price"  />
+        <result property="productImage"  column="product_image"  />
+    </resultMap>
+
+    <!-- 以 cdc_product 为主表，LEFT JOIN 推荐数据，所有商品都显示 -->
+    <select id="selectRecommendList" parameterType="com.ruoyi.business.ranking.domain.Recommend" resultMap="RecommendResult">
+        select r.id, coalesce(r.score, 0) as score, r.reason,
+               r.status,
+               r.create_by, r.create_time, r.update_by, r.update_time, r.remark,
+               p.id as product_id, p.product_name, p.price as product_price, p.image_url as product_image
+        from cdc_product p
+        left join cdc_recommend r on p.id = r.product_id
+        <where>
+            p.del_flag = '0' and p.status = '0'
+            <if test="productName != null and productName != ''">
+                AND p.product_name like concat('%', #{productName}, '%')
+            </if>
+        </where>
+        order by score desc
+    </select>
+
+    <select id="selectRecommendById" parameterType="Long" resultMap="RecommendResult">
+        select r.id, r.product_id, r.score, r.reason,
+               r.status,
+               r.create_by, r.create_time, r.update_by, r.update_time, r.remark,
+               p.product_name, p.price as product_price, p.image_url as product_image
+        from cdc_recommend r
+        left join cdc_product p on r.product_id = p.id
+        where r.id = #{id}
+    </select>
+
+    <select id="selectEnabledRecommends" resultMap="RecommendResult">
+        select r.id, r.product_id, r.score, r.reason,
+               r.status,
+               r.create_by, r.create_time, r.update_by, r.update_time, r.remark,
+               p.product_name, p.price as product_price, p.image_url as product_image
+        from cdc_recommend r
+        left join cdc_product p on r.product_id = p.id
+        where r.status = '0'
+          and p.status = '0' and p.del_flag = '0'
+        order by r.score desc
+    </select>
+
+    <!-- 按 product_id 查一条推荐记录 -->
+    <select id="selectByProductId" resultMap="RecommendResult">
+        select r.id, r.product_id, r.score, r.reason,
+               r.status,
+               r.create_by, r.create_time, r.update_by, r.update_time, r.remark,
+               p.product_name, p.price as product_price, p.image_url as product_image
+        from cdc_recommend r
+        left join cdc_product p on r.product_id = p.id
+        where r.product_id = #{productId}
+        limit 1
+    </select>
+
+    <insert id="insertRecommend" parameterType="com.ruoyi.business.ranking.domain.Recommend">
+        insert into cdc_recommend (product_id, score, reason, status, create_by, remark, create_time)
+        values (#{productId}, #{score}, #{reason}, #{status}, #{createBy}, #{remark}, sysdate())
+    </insert>
+
+    <update id="updateRecommend" parameterType="com.ruoyi.business.ranking.domain.Recommend">
+        update cdc_recommend
+        <set>
+            <if test="score != null">score = #{score},</if>
+            <if test="reason != null and reason != ''">reason = #{reason},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = sysdate()
+        </set>
+        where product_id = #{productId}
+    </update>
+
+    <delete id="deleteRecommendByIds" parameterType="Long">
+        delete from cdc_recommend where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">#{id}</foreach>
+    </delete>
+
+</mapper>

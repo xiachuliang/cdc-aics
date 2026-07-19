@@ -60,7 +60,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </select>
 
     <select id="getTodayOrderCount" parameterType="String" resultType="int">
-        SELECT COUNT(*) FROM cdc_portal_order WHERE order_no LIKE CONCAT(#{datePrefix},'%')
+        SELECT COUNT(*) FROM cdc_portal_order WHERE order_no LIKE CONCAT('XS',#{datePrefix},'%')
     </select>
 
     <insert id="insertPortalOrder" parameterType="PortalOrder" useGeneratedKeys="true" keyProperty="id">

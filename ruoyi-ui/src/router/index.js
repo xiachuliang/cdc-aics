@@ -1,8 +1,4 @@
-import Vue from 'vue'
-import Router from 'vue-router'
-
-Vue.use(Router)
-
+import { createWebHistory, createRouter } from 'vue-router'
 /* Layout */
 import Layout from '@/layout'
 
@@ -37,7 +33,7 @@ export const constantRoutes = [
     children: [
       {
         path: '/redirect/:path(.*)',
-        component: () => import('@/views/redirect')
+        component: () => import('@/views/redirect/index.vue')
       }
     ]
   },
@@ -52,7 +48,7 @@ export const constantRoutes = [
     hidden: true
   },
   {
-    path: '/404',
+    path: "/:pathMatch(.*)*",
     component: () => import('@/views/error/404'),
     hidden: true
   },
@@ -64,15 +60,56 @@ export const constantRoutes = [
   {
     path: '',
     component: Layout,
-    redirect: 'index',
+    redirect: '/index',
     children: [
       {
-        path: 'index',
+        path: '/index',
         component: () => import('@/views/index'),
         name: 'Index',
         meta: { title: '首页', icon: 'dashboard', affix: true }
       }
     ]
+  },
+  // ==================== 门户页面（免登录，独立布局） ====================
+  {
+    path: '/portal/product',
+    component: () => import('@/views/portal/index'),
+    name: 'PortalProduct',
+    hidden: true,
+    meta: { title: '商品浏览' }
+  },
+  {
+    path: '/portal/product/detail/:id',
+    component: () => import('@/views/portal/product/detail'),
+    name: 'PortalProductDetail',
+    hidden: true,
+    meta: { title: '商品详情' }
+  },
+  {
+    path: '/portal/cart',
+    component: () => import('@/views/portal/cart/index'),
+    name: 'PortalCart',
+    hidden: true,
+    meta: { title: '购物车' }
+  },
+  {
+    path: '/portal/chat',
+    redirect: '/portal/product',
+    hidden: true,
+  },
+  {
+    path: '/portal/order/confirm',
+    component: () => import('@/views/portal/order/confirm'),
+    name: 'PortalOrderConfirm',
+    hidden: true,
+    meta: { title: '确认订单' }
+  },
+  {
+    path: '/portal/order/query',
+    component: () => import('@/views/portal/order/query'),
+    name: 'PortalOrderQuery',
+    hidden: true,
+    meta: { title: '订单查询' }
   },
   {
     path: '/lock',
@@ -87,7 +124,7 @@ export const constantRoutes = [
     redirect: 'noredirect',
     children: [
       {
-        path: 'profile',
+        path: 'profile/:activeTab?',
         component: () => import('@/views/system/user/profile/index'),
         name: 'Profile',
         meta: { title: '个人中心', icon: 'user' }
@@ -98,6 +135,59 @@ export const constantRoutes = [
 
 // 动态路由，基于用户权限动态去加载
 export const dynamicRoutes = [
+  // ==================== 业务管理 ====================
+  {
+    path: '/business',
+    component: Layout,
+    redirect: '/business/product',
+    name: 'Business',
+    roles: ['admin', 'common'],
+    meta: { title: '业务管理', icon: 'list' },
+    children: [
+      {
+        path: 'product',
+        component: () => import('@/views/business/product/index'),
+        name: 'Product',
+        meta: { title: '商品管理', icon: 'component' }
+      },
+      {
+        path: 'category',
+        component: () => import('@/views/business/category/index'),
+        name: 'Category',
+        meta: { title: '分类管理', icon: 'component' }
+      },
+      {
+        path: 'supplier',
+        component: () => import('@/views/business/supplier/index'),
+        name: 'Supplier',
+        meta: { title: '供应商管理', icon: 'component' }
+      },
+      {
+        path: 'purchase',
+        component: () => import('@/views/business/purchase/index'),
+        name: 'Purchase',
+        meta: { title: '采购管理', icon: 'component' }
+      },
+      {
+        path: 'order',
+        component: () => import('@/views/business/order/index'),
+        name: 'Order',
+        meta: { title: '订单管理', icon: 'component' }
+      },
+      {
+        path: 'inventory',
+        component: () => import('@/views/business/inventory/index'),
+        name: 'Inventory',
+        meta: { title: '库存管理', icon: 'component' }
+      },
+      {
+        path: 'stock',
+        component: () => import('@/views/business/stock/index'),
+        name: 'Stock',
+        meta: { title: '出入库管理', icon: 'component' }
+      }
+    ]
+  },
   {
     path: '/system/user-auth',
     component: Layout,
@@ -170,20 +260,15 @@ export const dynamicRoutes = [
   }
 ]
 
-// 防止连续点击多次路由报错
-let routerPush = Router.prototype.push
-let routerReplace = Router.prototype.replace
-// push
-Router.prototype.push = function push(location) {
-  return routerPush.call(this, location).catch(err => err)
-}
-// replace
-Router.prototype.replace = function push(location) {
-  return routerReplace.call(this, location).catch(err => err)
-}
-
-export default new Router({
-  mode: 'history', // 去掉url中的#
-  scrollBehavior: () => ({ y: 0 }),
-  routes: constantRoutes
+const router = createRouter({
+  history: createWebHistory(),
+  routes: constantRoutes,
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition
+    }
+    return { top: 0 }
+  },
 })
+
+export default router

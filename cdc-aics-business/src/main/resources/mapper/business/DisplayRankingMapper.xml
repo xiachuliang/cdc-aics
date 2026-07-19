@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.business.ranking.mapper.DisplayRankingMapper">
+
+    <resultMap type="com.ruoyi.business.ranking.domain.DisplayRanking" id="DisplayRankingResult">
+        <id     property="id"            column="id"             />
+        <result property="productId"     column="product_id"     />
+        <result property="finalScore"    column="final_score"    />
+        <result property="hotScore"      column="hot_score"      />
+        <result property="recScore"      column="rec_score"      />
+        <result property="source"        column="source"         />
+        <result property="status"        column="status"         />
+        <result property="generateTime"  column="generate_time"  />
+        <result property="createBy"      column="create_by"      />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"      column="update_by"      />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"        column="remark"         />
+        <result property="productName"   column="product_name"   />
+        <result property="productPrice"  column="product_price"  />
+        <result property="productImage"  column="product_image"  />
+    </resultMap>
+
+    <sql id="selectDisplayRankingVo">
+        select dr.id, dr.product_id, dr.final_score, dr.hot_score, dr.rec_score,
+               dr.source, dr.status, dr.generate_time,
+               dr.create_by, dr.create_time, dr.update_by, dr.update_time, dr.remark,
+               p.product_name, p.price as product_price, p.image_url as product_image
+        from cdc_display_ranking dr
+        left join cdc_product p on dr.product_id = p.id
+    </sql>
+
+    <select id="selectDisplayRankingList" parameterType="com.ruoyi.business.ranking.domain.DisplayRanking" resultMap="DisplayRankingResult">
+        <include refid="selectDisplayRankingVo"/>
+        <where>
+            <if test="productName != null and productName != ''">
+                AND p.product_name like concat('%', #{productName}, '%')
+            </if>
+            <if test="source != null and source != ''">
+                AND dr.source = #{source}
+            </if>
+            <if test="status != null and status != ''">
+                AND dr.status = #{status}
+            </if>
+        </where>
+        order by dr.final_score desc
+    </select>
+
+    <select id="selectDisplayRankingTopN" resultMap="DisplayRankingResult">
+        <include refid="selectDisplayRankingVo"/>
+        where dr.status = '0'
+          and p.status = '0' and p.del_flag = '0'
+        order by dr.final_score desc
+        limit #{limit}
+    </select>
+
+    <update id="truncateDisplayRanking">
+        truncate table cdc_display_ranking
+    </update>
+
+    <insert id="batchInsertDisplayRanking" parameterType="list">
+        insert into cdc_display_ranking (product_id, final_score, hot_score, rec_score, source, status, generate_time, create_time)
+        values
+        <foreach collection="list" item="item" separator=",">
+            (#{item.productId}, #{item.finalScore}, #{item.hotScore}, #{item.recScore},
+             #{item.source}, #{item.status}, sysdate(), sysdate())
+        </foreach>
+    </insert>
+
+    <delete id="deleteDisplayRankingByIds" parameterType="Long">
+        delete from cdc_display_ranking where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+</mapper>

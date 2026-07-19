@@ -5,6 +5,8 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +18,7 @@ import com.ruoyi.business.mapper.InventoryLogMapper;
 import com.ruoyi.business.mapper.PortalOrderItemMapper;
 import com.ruoyi.business.mapper.PortalOrderMapper;
 import com.ruoyi.business.mapper.ProductMapper;
+import com.ruoyi.business.ranking.service.IHotRankingService;
 import com.ruoyi.business.service.IPortalOrderService;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.StringUtils;
@@ -28,6 +31,8 @@ import com.ruoyi.common.utils.StringUtils;
 @Service
 public class PortalOrderServiceImpl implements IPortalOrderService
 {
+    private static final Logger log = LoggerFactory.getLogger(PortalOrderServiceImpl.class);
+
     @Autowired
     private PortalOrderMapper portalOrderMapper;
 
@@ -39,6 +44,9 @@ public class PortalOrderServiceImpl implements IPortalOrderService
 
     @Autowired
     private InventoryLogMapper inventoryLogMapper;
+
+    @Autowired
+    private IHotRankingService hotRankingService;
 
     @Override
     public PortalOrder selectPortalOrderById(Long id)
@@ -136,6 +144,16 @@ public class PortalOrderServiceImpl implements IPortalOrderService
             inventoryLogMapper.insertInventoryLog(log);
         }
         portalOrderItemMapper.batchInsert(items);
+
+        // 同步热销排行榜：下单后自动累加商品销量
+        for (PortalOrderItem item : items) {
+            try {
+                hotRankingService.incrementSales(item.getProductId(), item.getQuantity());
+            } catch (Exception e) {
+                // 排行榜同步失败不影响下单
+                log.error("同步热销排行榜失败: productId={}", item.getProductId(), e);
+            }
+        }
 
         return order;
     }

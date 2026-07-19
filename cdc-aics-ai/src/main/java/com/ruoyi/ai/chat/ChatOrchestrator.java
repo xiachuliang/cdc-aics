@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import com.ruoyi.ai.agent.IntentResult;
 import com.ruoyi.ai.agent.RagAgentService;
 import com.ruoyi.ai.agent.RouterService;
+import com.ruoyi.ai.chitchat.ChitchatAgentService;
 import com.ruoyi.ai.config.RateLimitService;
 import com.ruoyi.ai.eval.EvalJudgeService;
 import com.ruoyi.ai.sql.TextToSqlService;
@@ -27,6 +28,7 @@ public class ChatOrchestrator implements IChatService {
     private final RagAgentService ragAgentService;
     private final IChatService toolsAgent;
     private final TextToSqlService textToSqlService;
+    private final ChitchatAgentService chitchatAgentService;
     private final EvalJudgeService evalJudgeService;
     private final RateLimitService rateLimitService;
     private final ChatLogMapper chatLogMapper;
@@ -35,6 +37,7 @@ public class ChatOrchestrator implements IChatService {
                             RagAgentService ragAgentService,
                             IChatService toolsAgent,
                             TextToSqlService textToSqlService,
+                            ChitchatAgentService chitchatAgentService,
                             EvalJudgeService evalJudgeService,
                             RateLimitService rateLimitService,
                             ChatLogMapper chatLogMapper) {
@@ -42,10 +45,11 @@ public class ChatOrchestrator implements IChatService {
         this.ragAgentService = ragAgentService;
         this.toolsAgent = toolsAgent;
         this.textToSqlService = textToSqlService;
+        this.chitchatAgentService = chitchatAgentService;
         this.evalJudgeService = evalJudgeService;
         this.rateLimitService = rateLimitService;
         this.chatLogMapper = chatLogMapper;
-        log.info("ChatOrchestrator 初始化完成（三Agent + 限流 + 日志）");
+        log.info("ChatOrchestrator 初始化完成（四Agent：闲聊+RAG+SQL+Tools + 限流 + 日志）");
     }
 
     @Override
@@ -64,7 +68,11 @@ public class ChatOrchestrator implements IChatService {
 
         ChatResult cr;
         try {
-            if (intent.equals("ANALYTICS")) {
+            if (intent.equals("CHITCHAT")) {
+                log.info("路由 → 闲聊 Agent: {}", message);
+                cr = new ChatResult();
+                cr.setAnswer(chitchatAgentService.chat(sessionId, message));
+            } else if (intent.equals("ANALYTICS")) {
                 log.info("路由 → Text-to-SQL Agent: {}", message);
                 cr = new ChatResult();
                 cr.setAnswer(textToSqlService.chat(sessionId, message));
@@ -111,7 +119,10 @@ public class ChatOrchestrator implements IChatService {
 
         Flux<String> stream;
         try {
-            if (intent.equals("ANALYTICS")) {
+            if (intent.equals("CHITCHAT")) {
+                log.info("流式路由 → 闲聊 Agent: {}", message);
+                stream = chitchatAgentService.chatStream(sessionId, message);
+            } else if (intent.equals("ANALYTICS")) {
                 log.info("流式路由 → Text-to-SQL Agent: {}", message);
                 stream = textToSqlService.chatStream(sessionId, message);
             } else if (intent.equals("CONSULTATION")) {

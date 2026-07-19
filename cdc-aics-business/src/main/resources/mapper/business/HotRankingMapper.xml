@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.business.ranking.mapper.HotRankingMapper">
+
+    <resultMap type="com.ruoyi.business.ranking.domain.HotRanking" id="HotRankingResult">
+        <id     property="id"            column="id"             />
+        <result property="productId"     column="product_id"     />
+        <result property="salesCount"    column="sales_count"    />
+        <result property="period"        column="period"         />
+        <result property="status"        column="status"         />
+        <result property="createBy"      column="create_by"      />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"      column="update_by"      />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"        column="remark"         />
+        <result property="productName"   column="product_name"   />
+        <result property="productPrice"  column="product_price"  />
+        <result property="productImage"  column="product_image"  />
+    </resultMap>
+
+    <!-- 以 cdc_product 为主表，LEFT JOIN 热销数据，所有商品都显示 -->
+    <select id="selectHotRankingList" parameterType="com.ruoyi.business.ranking.domain.HotRanking" resultMap="HotRankingResult">
+        select hr.id, coalesce(hr.sales_count, 0) as sales_count,
+               hr.period, hr.status,
+               hr.create_by, hr.create_time, hr.update_by, hr.update_time, hr.remark,
+               p.id as product_id, p.product_name, p.price as product_price, p.image_url as product_image
+        from cdc_product p
+        left join cdc_hot_ranking hr on p.id = hr.product_id
+        <where>
+            p.del_flag = '0' and p.status = '0'
+            <if test="productName != null and productName != ''">
+                AND p.product_name like concat('%', #{productName}, '%')
+            </if>
+            <if test="period != null and period != ''">
+                AND hr.period = #{period}
+            </if>
+        </where>
+        order by sales_count desc
+    </select>
+
+    <select id="selectHotRankingById" parameterType="Long" resultMap="HotRankingResult">
+        select hr.id, hr.product_id, hr.sales_count,
+               hr.period, hr.status,
+               hr.create_by, hr.create_time, hr.update_by, hr.update_time, hr.remark,
+               p.product_name, p.price as product_price, p.image_url as product_image
+        from cdc_hot_ranking hr
+        left join cdc_product p on hr.product_id = p.id
+        where hr.id = #{id}
+    </select>
+
+    <select id="selectHotRankingByPeriod" resultMap="HotRankingResult">
+        select hr.id, hr.product_id, hr.sales_count,
+               hr.period, hr.status,
+               hr.create_by, hr.create_time, hr.update_by, hr.update_time, hr.remark,
+               p.product_name, p.price as product_price, p.image_url as product_image
+        from cdc_hot_ranking hr
+        left join cdc_product p on hr.product_id = p.id
+        where hr.period = #{period}
+          and hr.status = '0'
+          and p.status = '0' and p.del_flag = '0'
+        order by hr.sales_count desc
+    </select>
+
+    <!-- 按 product_id 查一条热销记录 -->
+    <select id="selectByProductId" resultMap="HotRankingResult">
+        select hr.id, hr.product_id, hr.sales_count,
+               hr.period, hr.status,
+               hr.create_by, hr.create_time, hr.update_by, hr.update_time, hr.remark,
+               p.product_name, p.price as product_price, p.image_url as product_image
+        from cdc_hot_ranking hr
+        left join cdc_product p on hr.product_id = p.id
+        where hr.product_id = #{productId}
+        limit 1
+    </select>
+
+    <insert id="insertHotRanking" parameterType="com.ruoyi.business.ranking.domain.HotRanking">
+        insert into cdc_hot_ranking (product_id, sales_count, period, status, create_by, remark, create_time)
+        values (#{productId}, #{salesCount}, #{period}, #{status}, #{createBy}, #{remark}, sysdate())
+    </insert>
+
+    <update id="updateHotRanking" parameterType="com.ruoyi.business.ranking.domain.HotRanking">
+        update cdc_hot_ranking
+        <set>
+            <if test="salesCount != null">sales_count = #{salesCount},</if>
+            <if test="period != null and period != ''">period = #{period},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = sysdate()
+        </set>
+        where product_id = #{productId}
+    </update>
+
+    <delete id="deleteHotRankingByIds" parameterType="Long">
+        delete from cdc_hot_ranking where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">#{id}</foreach>
+    </delete>
+
+</mapper>

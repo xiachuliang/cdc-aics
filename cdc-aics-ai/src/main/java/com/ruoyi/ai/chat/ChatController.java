@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 import com.ruoyi.ai.agent.ImageAnalysisService;
+import com.ruoyi.ai.tool.ToolResultStore;
 import com.ruoyi.common.annotation.Anonymous;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
@@ -45,6 +47,9 @@ public class ChatController extends BaseController {
         data.put("toolCalled", result.getToolCalled());
         data.put("products", result.getProducts());
         data.put("categories", result.getCategories());
+        data.put("cartItems", result.getCartItems());
+        data.put("order", result.getOrder());
+        data.put("orderItems", result.getOrderItems());
         return success(data);
     }
 
@@ -52,12 +57,14 @@ public class ChatController extends BaseController {
      * AI 对话（流式）
      * ResponseBodyEmitter：异步线程写 + 立即返回，每个 send() 自动 flush
      */
-    @PostMapping("/chat/stream")
+    @PostMapping(value = "/chat/stream", produces = "text/event-stream;charset=UTF-8")
     public ResponseBodyEmitter chatStream(@RequestBody Map<String, String> params) {
         String sessionId = params.getOrDefault("sessionId", orchestrator.newSessionId());
         String message = params.getOrDefault("message", params.get("question"));
 
         ResponseBodyEmitter emitter = new ResponseBodyEmitter();
+        // ★ 立即发送一个初始事件，让浏览器知道流已开始（避免首字延迟感）
+        try { emitter.send(""); } catch (IOException ignored) {}
         orchestrator.chatStream(sessionId, message)
                 .subscribe(
                         token -> {
@@ -95,6 +102,27 @@ public class ChatController extends BaseController {
         data.put("imageDescription", description);
         data.put("sessionId", sessionId);
 
+        return success(data);
+    }
+
+    /**
+     * 取工具调用卡片数据（流式端点配套用）。
+     * 前端流式结束后调用此接口，拿购物车/订单/商品卡片数据。
+     * 取后即删，不可重复读取。
+     */
+    @GetMapping("/chat/tool-data")
+    public AjaxResult toolData(@RequestParam("sessionId") String sessionId) {
+        ToolResultStore.StoredResult r = ToolResultStore.drain(sessionId);
+        if (r == null) {
+            return success();
+        }
+        Map<String, Object> data = new HashMap<>();
+        data.put("toolCalled", r.toolName);
+        data.put("products", r.products);
+        data.put("categories", r.categories);
+        data.put("cartItems", r.cartItems);
+        data.put("order", r.order);
+        data.put("orderItems", r.orderItems);
         return success(data);
     }
 

@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
 
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * 程序注解配置
@@ -16,6 +17,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
  */
 @Configuration
 @EnableAsync
+@EnableScheduling
 @EnableAspectJAutoProxy(exposeProxy = true)
 @MapperScan("com.ruoyi.**.mapper")
 public class ApplicationConfig

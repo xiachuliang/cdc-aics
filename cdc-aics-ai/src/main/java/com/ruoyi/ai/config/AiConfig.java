@@ -1,5 +1,6 @@
 package com.ruoyi.ai.config;
 
+import com.ruoyi.ai.tool.OrderTools;
 import com.ruoyi.ai.tool.ProductTools;
 import io.milvus.client.MilvusServiceClient;
 import io.milvus.param.ConnectParam;
@@ -21,9 +22,9 @@ import org.springframework.data.redis.core.RedisTemplate;
 public class AiConfig {
 
     @Bean
-    public ChatClient chatClient(ChatClient.Builder builder, ProductTools productTools) {
+    public ChatClient chatClient(ChatClient.Builder builder, ProductTools productTools, OrderTools orderTools) {
         return builder
-                .defaultTools(productTools)
+                .defaultTools(productTools, orderTools)
                 .build();
     }
 
@@ -32,9 +33,14 @@ public class AiConfig {
         return new RedisChatMemory(redisTemplate, 10);
     }
 
-    @Bean
+    @Bean("guidePrompt")
     public Resource guidePromptResource() {
         return new ClassPathResource("prompts/guide.st");
+    }
+
+    @Bean("chitchatPrompt")
+    public Resource chitchatPromptResource() {
+        return new ClassPathResource("prompts/chitchat.st");
     }
 
     /** Milvus 连接客户端 */

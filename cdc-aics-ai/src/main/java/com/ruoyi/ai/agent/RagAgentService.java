@@ -49,7 +49,7 @@ public class RagAgentService {
         String summary = redisMemory.getSummary(sessionId);
 
         StringBuilder sb = new StringBuilder();
-        sb.append("你是超市智能导购「小智」。请基于以下知识库信息回答用户问题。回答简洁亲切，控制在 150 字以内。\n\n");
+        sb.append("你是超市智能导购「小智」。请基于以下知识库信息回答用户关于超市规则制度、常见问题的问题。回答简洁准确，控制在 150 字以内。\n\n");
 
         if (!summary.isEmpty()) {
             sb.append("---历史摘要---\n").append(summary).append("\n");
@@ -58,8 +58,7 @@ public class RagAgentService {
         sb.append("---知识库检索结果（常见问题 + 规章制度文档）---\n");
         if (docs.isEmpty()) {
             sb.append("（未找到相关知识）\n");
-            sb.append("重要：用户的问题在知识库中没有匹配。这说明用户大概率在闲聊或打招呼。");
-            sb.append("请直接友好地回应闲聊，闲聊时不要推荐某种商品，因为我们可能没有这件商品，反正就说一下聊天的话，说我可以给你推荐商品啊，也不要建议用户换个问法。\n");
+            sb.append("知识库中没有匹配用户问题的内容。请诚实地告知用户暂时无法回答该问题，建议联系人工客服。\n");
         } else {
             for (int i = 0; i < docs.size(); i++) {
                 Document doc = docs.get(i);

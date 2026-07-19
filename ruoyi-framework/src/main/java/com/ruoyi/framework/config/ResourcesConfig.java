@@ -41,15 +41,13 @@ public class ResourcesConfig implements WebMvcConfigurer
     }
 
     /**
-     * SPA fallback：Vue history 模式路由刷新（如 /ai/eval、/inventory/xxx）
-     * 浏览器会当成后端请求，后端没有对应接口时转发到 index.html 让 Vue 接管
+     * SPA fallback 交由 {@link com.ruoyi.framework.web.SpaFallbackController} 处理。
+     * ViewControllerRegistry 不支持 {path:regex} 路径变量正则，
+     * 因此改用 @Controller + @GetMapping 实现，Spring PathPattern 原生支持正则约束。
      */
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
-        registry.addViewController("/{path:^(?!api|static|swagger|v3|error|profile).*}/**")
-                .setViewName("forward:/index.html");
-        registry.addViewController("/{path:^(?!api|static|swagger|v3|error|profile).+}")
-                .setViewName("forward:/index.html");
+        // SPA fallback 已迁移到 SpaFallbackController，此处保留空实现
     }
 
     /**

@@ -41,23 +41,30 @@ cdc-aics-server/
 
 **Agent 层**：
 - `ChatOrchestrator.java` — 总调度器（意图路由 → 分发到各 Agent）
-- `RouterService.java` — LLM 意图分类（CONSULTATION / ANALYTICS / OPERATION，待加 CHITCHAT）
-- `RagAgentService.java` — RAG Agent（向量检索 + System Prompt 拼装 + 闲聊兜底）
-- `ChatServiceImpl.java` — Tools Agent（Tool Calling 写操作 + SQL 精确查询）
+- `RouterService.java` — LLM 意图分类（CHITCHAT / CONSULTATION / ANALYTICS / OPERATION）
+- `ChitchatAgentService.java` — 闲聊 Agent（⭐ 纯 ChatClient + 排行榜 Prompt 注入，无 Tool、无 RAG）
+- `RagAgentService.java` — RAG Agent（向量检索 FAQ + 规则制度，纯知识检索）
+- `ChatServiceImpl.java` — Tools Agent（Tool Calling: 商品查询 + 购物车 + 下单）
 - `TextToSqlService.java` — Text-to-SQL Agent（自然语言 → SELECT → 执行 → 解读）
 - `ImageAnalysisService.java` — 多模态图片分析（qwen-vl-plus，HTTP API）
 
 **工具层**：
-- `ProductTools.java` — 5个商品工具（@Tool 注解 + ThreadLocal 暂存结果）
+- `ProductTools.java` — 5个商品查询工具（@Tool 注解 + ThreadLocal 暂存结果）
+- `OrderTools.java` — 6个购物操作工具（加购/查购物车/删购物车项/改数量/下单/查订单，@Tool 注解 + ToolResultStore 暂存结果）
 
 **基础设施层**：
 - `AiConfig.java` — ChatClient + ChatMemory + VectorStore + Prompt 模板 配置
 - `RedisChatMemory.java` — 自实现 ChatMemory（Redis 持久化 + 窗口10条 + 摘要 + TTL）
 - `KnowledgeBaseInitializer.java` — Milvus 知识库初始化（FAQ + 文档切片，schema 检测与自动重建）
-- `Intent.java` — 意图枚举
+- `Intent.java` — 意图枚举（CHITCHAT / CONSULTATION / ANALYTICS / OPERATION）
+
+**chitchat 包（闲聊 Agent + 排行榜缓存）**：
+- `ChitchatAgentService.java` — 闲聊 Agent（主动带货，排行榜通过 Prompt 注入）
+- `RankingCacheService.java` — 排行榜缓存（`@Scheduled` 每小时查展示榜 Top 10，格式化为文本）
 
 **Prompt 管理**：
-- `prompts/guide.st` — 导购 System Prompt 模板（StringTemplate 格式）
+- `prompts/guide.st` — Tools Agent System Prompt 模板（StringTemplate 格式）
+- `prompts/chitchat.st` — 闲聊 Agent System Prompt 模板（排行榜占位 `{rankingSection}`）
 
 **评测与向量同步**：
 - `EvalJudgeService.java` — LLM-Judge 异步评测（10% 抽检）
@@ -81,7 +88,7 @@ cdc-aics-server/
 - ✅ 基础对话（ChatClient + DashScope + deepseek-v4-flash）
 - ✅ 对话记忆（RedisChatMemory，窗口10条 + 摘要 + TTL 30min）
 - ✅ 流式输出 SSE（ResponseBodyEmitter + fetch ReadableStream 打字机效果）
-- ✅ Tool Calling（5个商品工具 + ThreadLocal 卡片渲染）
+- ✅ Tool Calling（5个商品工具 + 6个购物工具 + ThreadLocal/ToolResultStore 卡片渲染）
 - ✅ Prompt 工程化（.st 模板 + 变量注入 + 热更新）
 - ✅ RAG 检索增强生成（Milvus 向量库 + FAQ + 文档切片语义检索）
 - ✅ 混合检索（向量语义 + SQL LIKE + RRF 融合）
@@ -89,9 +96,11 @@ cdc-aics-server/
 - ✅ 多模态图片分析（qwen-vl-plus + HTTP API + 前端图片上传）
 - ✅ MCP 协议概念（未写代码，Spring AI 1.1.2 无完整支持）
 - ✅ 多智能体协同（四 Agent：闲聊 + RAG + Text-to-SQL + Tools）
+- ✅ AI 购物能力（加购/购物车管理/下单确认，双重库存检查，低风险自动+高风险确认）
 - ✅ AI 评测体系（10% 随机抽检 + LLM-Judge 异步打分 + 后台管理）
 - ✅ 生产化（对话日志 + Redis 限流 + 异常降级 + 后台管理）
 - ✅ AI导购聊天界面（快捷问题、会话管理、跨页面持久化）
+- ✅ 闲聊带货（独立闲聊 Agent + 排行榜 Prompt 注入 + 定时刷新缓存）
 
 ---
 
@@ -466,7 +475,7 @@ AI能力层 | ChatClient | Tool Calling | RAG | Text2SQL | Multi-Agent
 
 ---
 
-### 当前进度（2026-07-13 更新）
+### 当前进度（2026-07-14 更新）
 
 - [x] ✅ 项目框架搭建（若依 + 三模块）
 - [x] ✅ 基础对话（ChatClient + DashScope）
@@ -591,13 +600,31 @@ AI能力层 | ChatClient | Tool Calling | RAG | Text2SQL | Multi-Agent
    - [x] ChatOrchestrator 增加 RateLimitService + ChatLogMapper
    - [x] 后台管理：对话日志页面（筛选意图/Agent + 详情弹窗）
    - [x] 两个表分离：cdc_chat_log(100%记录) vs cdc_eval_log(10%抽检打分)
-- [ ] ⬜ **闲聊 Agent 拆分** ← 待实现
-   - [ ] 新增 CHITCHAT 意图：Router 识别闲聊/打招呼/心情表达
-   - [ ] 新建 ChitchatAgentService：纯 ChatClient，无检索、无 Tool
-   - [ ] ChatOrchestrator 新增 CHITCHAT 分支
-   - [ ] 四 Agent 架构：CHITCHAT + CONSULTATION + ANALYTICS + OPERATION
-   - [ ] 核心原则：每个 Agent 只干一件事，不兼职
-   - [ ] RAG Agent 去掉检索为空的硬编码返回，保留 Prompt 兜底（检索空 → 引导 LLM 当闲聊处理）
+- [x] ✅ **操作智能体完善（购物车 + 下单）** ← 已完成（2026-07-14）
+   - [x] 新建 OrderTools.java（6个工具：addToCart / getCart / removeFromCart / updateCartQuantity / createOrder / queryOrder）
+   - [x] 新建 ToolResultStore.java（ConcurrentHashMap 跨线程共享，解决流式端点无法返回卡片数据的问题）
+   - [x] 统一 SessionId：5个前端页面 `cdc_session_id` → `cdc_chat_session_id`（AI 和购物车用同一个 ID）
+   - [x] ChatResult 扩展：加 cartItems / order / orderItems 字段
+   - [x] AiConfig 注册 OrderTools 为 defaultTools
+   - [x] ChatServiceImpl：ThreadLocal 传递 sessionId，drain 两个 Tool 结果，存 ToolResultStore
+   - [x] ChatController：同步端点返回 cart/order 数据，新增 GET /ai/chat/tool-data 端点
+   - [x] 前端：流式结束轮询 tool-data，渲染购物车卡片 + 订单成功卡片
+   - [x] 加购前库存检查（工具层）+ 下单时行锁防超卖（Service 层）= 双重保险
+   - [x] 下单确认流程：LLM 多轮对话 → 查购物车 → 确认 → 收集手机号 → createOrder
+   - [x] 设计原则：低风险（加购）AI 直接操作，高风险（下单）LLM 多轮确认
+- [x] ✅ **闲聊 Agent 拆分** ← 已完成（2026-07-14）
+   - [x] 新增 CHITCHAT 意图：Router 识别闲聊/打招呼/情绪表达/模糊推荐
+   - [x] 新建 `chitchat/ChitchatAgentService.java`：纯 ChatClient + ChatMemory，无检索、无 Tool
+   - [x] 新建 `chitchat/RankingCacheService.java`：`@Scheduled` 每小时查展示榜 Top 10，缓存为文本
+   - [x] 新建 `prompts/chitchat.st`：闲聊 Agent 专属 Prompt 模板
+   - [x] ChatOrchestrator 新增 CHITCHAT 分支（同步 + 流式）
+   - [x] 四 Agent 架构：CHITCHAT（主动带货）+ CONSULTATION（FAQ规则）+ ANALYTICS（统计）+ OPERATION（商品操作）
+   - [x] 核心原则：每个 Agent 只干一件事，不兼职
+   - [x] RAG Agent 去掉闲聊兜底，纯 FAQ + 规则制度检索
+   - [x] 排行榜通过 Prompt 注入而非 Tool Calling（更自然，减少 LLM 决策）
+   - [x] 四个 Agent 共享同一个 RedisChatMemory + sessionId（记忆不分裂）
+   - [x] @EnableScheduling 定时任务（ApplicationConfig 加注解）
+   - [x] 两 Resource Bean 用 @Qualifier 区分（guidePrompt / chitchatPrompt）
 - [ ] ⬜ **Router 智能体化** ← 待实现
    - [ ] Router 本身做成一个 Agent（带 ChatMemory + System Prompt）
    - [ ] 意图分类同时输出：意图 + 改写查询词（ragQuery / sqlKeyword）+ 简要理由
@@ -676,6 +703,50 @@ AI能力层 | ChatClient | Tool Calling | RAG | Text2SQL | Multi-Agent
 
 ---
 
+### 🔧 Bug 修复记录（2026-07-19）：流式输出前端"全部一起出"
+
+**问题现象**：后端 token 逐个发（log 可证），前端 `reader.read()` 也逐 chunk 收到（20 chunks / 900ms），但页面显示是全部一起出，没有打字机效果。
+
+**排查过程**：
+
+1. **加诊断日志双向对比**：后端 `emitter.send()` 加 Sysout + 时间戳，前端 `reader.read()` 加 `console.log` + `performance.now()`。确认后端流式正常，前端也收到多个 chunk。
+
+2. **初步怀疑 `content-type=null`**：`ResponseBodyEmitter` 未设 Content-Type，可能导致代理/浏览器缓冲。加上 `produces = "text/event-stream;charset=UTF-8"` 并 `emitter.send("")` 首帧推送。
+
+3. **发现 `setInterval` 只触发 1 次**：流式 20 chunks 跨 900ms，理论上 30ms 间隔的 setInterval 应触发 ~30 次，但只触发了 1 次。
+
+4. **根因一：微任务饿死宏任务（JS 事件循环）**：
+   - `reader.read()` 返回的 Promise 在**微任务**中 resolve
+   - `while(true)` 循环持续消费微任务，微任务队列必须清空才轮到宏任务
+   - `setInterval` 是**宏任务**，被微任务无限循环饿死
+   - 修法：每读到 chunk 后 `await new Promise(r => setTimeout(r, 5))` 主动让出控制权
+
+5. **根因二：Vue 3 响应式 Proxy 陷阱（真正元凶）**：
+   - `messages.value.push(aiMsg)` 时，Vue 调用 `reactive(aiMsg)` 把对象包了一层 **Proxy** 存入数组
+   - 但 `aiMsg` 变量仍指向**原始裸对象**（Proxy 的 target）
+   - `aiMsg.content += 'x'` 直接改裸对象属性 → **Proxy 的 `set` 陷阱不触发** → Vue 不知道数据变了
+   - 只有最后 `chatLoading.value = false` 触发唯一一次重渲染 → 全部文字一次性出来
+   - 修法：`messages.value[aiIdx].content += 'x'`（通过 Proxy 操作，触发响应式）
+
+**涉及知识点**：
+
+| 知识点 | 说明 |
+|--------|------|
+| **JS 事件循环（Event Loop）** | 微任务（Promise.then/await）vs 宏任务（setInterval/setTimeout/I/O）。每轮：1 个宏任务 → 清空所有微任务 → 渲染。微任务无限循环会饿死宏任务 |
+| **Vue 3 响应式原理** | `reactive()` 返回 `new Proxy(target, handlers)`，不是原对象。`push` 时 Vue 自动 wrap，但原变量引用仍指向裸对象。必须通过 Proxy 路径操作才能触发 `set` 陷阱 |
+| **ReadableStream API** | `fetch().body.getReader()` + `TextDecoder.decode(value, {stream:true})`。`{stream:true}` 保留不完整的多字节 UTF-8 序列 |
+| **SSE 协议** | `text/event-stream` Content-Type 告诉浏览器/代理"这是流，不要缓冲"。`ResponseBodyEmitter` 不设 produces 时默认无 Content-Type |
+| **诊断方法论** | 双向打点（后端 emit + 前端 reader.read 时间戳），对比各环节延迟定位瓶颈 |
+
+**代码改动**：
+
+| 文件 | 改动 |
+|------|------|
+| `ChatController.java` | `produces = "text/event-stream;charset=UTF-8"`，首帧 `emitter.send("")` |
+| `portal/index.vue` | 删 `setInterval` + `raw` 缓冲，改为 while 循环内逐字追加。**关键**：`messages.value[aiIdx].content += char` 非 `aiMsg.content += char` |
+
+---
+
 ### 阶段3 教学记录（2026-07-12）：Prompt 工程化
 
 **原理**：System Prompt 从"代码里的硬编码字符串"升级为"独立的 .st 模板文件 + 变量注入"。
@@ -743,38 +814,38 @@ AI能力层 | ChatClient | Tool Calling | RAG | Text2SQL | Multi-Agent
 ```
 v1（07-12）: 双 Agent — RAG + Tools
 v2（07-13）: 三 Agent — RAG + Text-to-SQL + Tools
-v3（07-13）: 四 Agent — 闲聊 + RAG + Text-to-SQL + Tools（进行中）
+v3（07-14）: 四 Agent — 闲聊 + RAG + Text-to-SQL + Tools（✅ 已完成）
 ```
 
 **设计原则**：
 - 每个 Agent 只干一件事，不兼职
-- 闲聊 Agent 无检索无 Tool，纯 ChatClient 陪聊
-- RAG Agent 专注向量语义检索，检索为空不硬编码拒绝 → 交 LLM 自行判断
-- 边界模糊靠各 Agent 内部 Prompt 兜底，不靠 Router 完美分类
-- 远期计划：Router 本身也做成 Agent（带 ChatMemory，看历史对话理解上下文）
+- 闲聊 Agent 无检索无 Tool，纯 ChatClient + 排行榜 Prompt 带货
+- RAG Agent 专注 FAQ + 规则制度向量检索，检索为空直接告知无法回答
+- 闲聊和 RAG 边界清晰：推荐带货 → 闲聊，FAQ/规则 → RAG
+- 四个 Agent 共享同一个 ChatMemory + sessionId（对话记忆不分裂）
 
 ```
 ChatController → ChatOrchestrator → RouterService.classify()
-                                       ├── CHITCHAT      → ChitchatAgentService（纯聊天，待实现）
-                                       ├── CONSULTATION  → RagAgentService（向量检索 + LLM）
+                                       ├── CHITCHAT      → ChitchatAgentService（闲聊带货 + 排行榜，✅）
+                                       ├── CONSULTATION  → RagAgentService（FAQ + 规则制度检索）
                                        ├── ANALYTICS     → TextToSqlService（SQL生成 + 执行 + 解读）
-                                       └── OPERATION     → ChatServiceImpl（Tool Calling + SQL）
+                                       └── OPERATION     → ChatServiceImpl（Tool Calling: 商品+购物车+下单）
 四个 Agent 共享 ChatMemory + sessionId（对话记忆不分裂）
 ```
 
 **文件清单**：
-- `Intent.java` — 意图枚举（CONSULTATION / OPERATION）
-- `RouterService.java` — 纯 LLM 意图分类（不带工具、不带 Advisor）
-- `RagAgentService.java` — RAG Agent（VectorStore 检索 + System Prompt 拼装 + ChatMemory）
-- `ChatOrchestrator.java` — 调度器（implements IChatService，同步/流式统一路由）
-- `ChatServiceImpl.java` — Tools Agent（不变，纯操作）
-- `ChatController.java` — 注入 ChatOrchestrator（替代 IChatService）
-- `KnowledgeBaseInitializer.java` — 启动时加载数据到向量库
-- 删除 `RagTools.java`（searchKnowledge 不再作为 Tool）
-
-**意图分类逻辑**：
-- CHITCHAT：闲聊/打招呼/心情表达（纯 ChatClient，无检索、无 Tool），待实现
-- CONSULTATION：FAQ + 文档咨询（走 RAG 向量库）
+| 文件 | 说明 |
+|------|------|
+| `Intent.java` | 意图枚举（CHITCHAT / CONSULTATION / ANALYTICS / OPERATION）|
+| `RouterService.java` | LLM 意图分类（不带工具、不带 Advisor）|
+| `chitchat/ChitchatAgentService.java` | 闲聊 Agent（⭐⭐ 纯 ChatClient + 排行榜 Prompt 注入）|
+| `chitchat/RankingCacheService.java` | 排行榜缓存（@Scheduled 每小时刷新）|
+| `agent/RagAgentService.java` | RAG Agent（纯 FAQ+规则检索，不含闲聊兜底）|
+| `chat/ChatOrchestrator.java` | 调度器（四 Agent 统一路由）|
+| `chat/ChatServiceImpl.java` | Tools Agent（不变）|
+| `sql/TextToSqlService.java` | Text-to-SQL Agent（不变）|
+| `prompts/chitchat.st` | 闲聊 Agent Prompt 模板 |
+| `config/AiConfig.java` | ChatClient + ChatMemory + 两个 Prompt 资源 Bean |
 - ANALYTICS：聚合统计（走 Text-to-SQL）
 - OPERATION：商品查询 + 写操作（下单/加购/修改订单）→ SQL Tool
 

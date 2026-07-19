@@ -26,6 +26,12 @@
             <artifactId>cdc-aics-business</artifactId>
         </dependency>
 
+        <!-- C端门户模块（OrderTools需要购物车服务） -->
+        <dependency>
+            <groupId>com.ruoyi</groupId>
+            <artifactId>cdc-aics-portal</artifactId>
+        </dependency>
+
         <!-- Spring Boot Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
