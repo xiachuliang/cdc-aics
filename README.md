@@ -1,4 +1,4 @@
-# 🛒 CDC 智能导购（cdc-aics）
+# 🛒 CDC 智能导购（cdc-aishopper）
 
 基于 [若依（RuoYi-Vue）](https://gitee.com/y_project/RuoYi-Vue) 的超市智能导购系统，集成 **Spring AI Alibaba + 阿里云百炼 DashScope**，实现多智能体协同的 AI 导购助手。（本人用于学习spring ai所用，如有需要请随意拿去修改）
 
